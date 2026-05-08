@@ -7,6 +7,7 @@ from ui.auth      import init_auth_state, render_auth_page
 from ui.sidebar   import render_sidebar
 from ui.chat      import render_chat
 from ui.analytics import render_analytics, render_history_table
+from ui.persistence import sync_local_user_state
 from model.loader import get_model_path, load_model
 
 
@@ -28,35 +29,28 @@ GLOBAL_DEFAULTS = {
     "bert_loaded": False,
     "api_key": "",
     "active_user_uid": "",
-    "user_state_store": {},
+    "hydrated_user_uid": "",
 }
 
 
-def _clone_default(value):
+def _clone(value):
     return deepcopy(value)
 
 
 def _init_state(defaults: dict) -> None:
     for key, value in defaults.items():
         if key not in st.session_state:
-            st.session_state[key] = _clone_default(value)
+            st.session_state[key] = _clone(value)
 
 
-def _save_user_state(uid: str) -> None:
-    if not uid:
-        return
-
-    st.session_state.user_state_store[uid] = {
-        key: _clone_default(st.session_state[key])
-        for key in USER_STATE_DEFAULTS
-    }
+def _snapshot_user_state() -> dict:
+    return {key: _clone(st.session_state[key]) for key in USER_STATE_DEFAULTS}
 
 
-def _load_user_state(uid: str) -> None:
-    saved = st.session_state.user_state_store.get(uid)
-    source = saved if saved is not None else USER_STATE_DEFAULTS
-    for key, value in source.items():
-        st.session_state[key] = _clone_default(value)
+def _load_user_state(saved: dict | None) -> None:
+    source = saved if isinstance(saved, dict) else USER_STATE_DEFAULTS
+    for key, default_value in USER_STATE_DEFAULTS.items():
+        st.session_state[key] = _clone(source.get(key, default_value))
 
 
 st.set_page_config(
@@ -73,23 +67,26 @@ _init_state(GLOBAL_DEFAULTS)
 init_auth_state()
 
 if not st.session_state.is_authenticated:
-    pending_logout_uid = st.session_state.get("pending_logout_uid", "")
-    if pending_logout_uid:
-        _save_user_state(pending_logout_uid)
-        st.session_state.active_user_uid = ""
-        st.session_state.pending_logout_uid = ""
     render_auth_page()
     st.stop()
 
 current_uid = (st.session_state.auth_user or {}).get("uid", "")
-previous_uid = st.session_state.active_user_uid
-
-if current_uid and current_uid != previous_uid:
-    if previous_uid:
-        _save_user_state(previous_uid)
-    _load_user_state(current_uid)
+if current_uid and current_uid != st.session_state.active_user_uid:
     st.session_state.active_user_uid = current_uid
-    st.session_state.pending_logout_uid = ""
+    st.session_state.hydrated_user_uid = ""
+
+if current_uid and st.session_state.hydrated_user_uid != current_uid:
+    payload = sync_local_user_state(
+        current_uid,
+        None,
+        key=f"hydrate_user_state_{current_uid}",
+    )
+    if payload and payload.get("uid") == current_uid:
+        _load_user_state(payload.get("stored"))
+        st.session_state.hydrated_user_uid = current_uid
+        st.rerun()
+    st.info("Loading your saved chat history...")
+    st.stop()
 
 api_key = render_sidebar(USER_STATE_DEFAULTS)
 st.session_state.api_key = api_key
@@ -138,3 +135,10 @@ with col_right:
     render_analytics()
 
 render_history_table()
+
+if current_uid:
+    sync_local_user_state(
+        current_uid,
+        _snapshot_user_state(),
+        key=f"sync_user_state_{current_uid}",
+    )

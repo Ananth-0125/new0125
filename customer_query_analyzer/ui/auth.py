@@ -13,7 +13,6 @@ AUTH_DEFAULTS = {
     "auth_token": "",
     "refresh_token": "",
     "auth_action": "",
-    "pending_logout_uid": "",
 }
 
 FIREBASE_ERROR_MESSAGES = {
@@ -475,10 +474,6 @@ def _set_authenticated_user(user_data: dict, id_token: str) -> None:
 
 
 def logout_user() -> None:
-    st.session_state.pending_logout_uid = (
-        (st.session_state.auth_user or {}).get("uid", "") or
-        st.session_state.get("active_user_uid", "")
-    )
     st.session_state.is_authenticated = False
     st.session_state.auth_token = ""
     st.session_state.refresh_token = ""
