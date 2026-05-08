@@ -190,7 +190,7 @@ Shown alongside the chat, this updates after every query with:
 - An intent frequency bar chart showing the most queried topics
 
 **Query History Table**
-A full log of every query in the session with intent, confidence, sentiment, status, latency, and user feedback. Can be downloaded as a CSV file.
+A full log of every query in the session with intent, confidence, sentiment, status, latency, and user feedback. Can be downloaded as a PDF report with session sentiment included.
 
 ---
 
@@ -199,8 +199,8 @@ A full log of every query in the session with intent, confidence, sentiment, sta
 Make sure Python 3.9 or higher is installed.
 
 ```bash
-pip install -r requirements.txt
-streamlit run app.py
+pip install -r ../requirements.txt
+streamlit run ../app.py
 ```
 
 When the app loads, it will automatically download the BERT model from HuggingFace on the first run. This takes about 1-2 minutes and only happens once — after that it is cached locally.
@@ -221,6 +221,18 @@ Get a free key at: https://console.groq.com
 
 ```
 GROQ_API_KEY = "your_groq_api_key_here"
+```
+
+Optional Firebase overrides:
+
+```
+FIREBASE_API_KEY = "your_firebase_api_key"
+FIREBASE_AUTH_DOMAIN = "your-project.firebaseapp.com"
+FIREBASE_PROJECT_ID = "your-project-id"
+FIREBASE_STORAGE_BUCKET = "your-project.firebasestorage.app"
+FIREBASE_MESSAGING_SENDER_ID = "your_sender_id"
+FIREBASE_APP_ID = "your_app_id"
+FIREBASE_MEASUREMENT_ID = "your_measurement_id"
 ```
 
 7. Save and reboot the app
@@ -272,5 +284,4 @@ Groq's API is free, has a generous rate limit, and is significantly faster than 
 
 **Why HuggingFace for model hosting?**
 GitHub has a 25MB file size limit. The trained model is 441MB. HuggingFace Hub is the standard platform for hosting ML model weights and integrates cleanly with Python through the `huggingface_hub` library.
-
 

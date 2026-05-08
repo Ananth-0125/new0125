@@ -1,0 +1,1 @@
+-r customer_query_analyzer/requirements.txt

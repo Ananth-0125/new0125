@@ -5,6 +5,8 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .mypy_cache/
+.cache/
+customer_query_analyzer/.cache/
 .venv/
 venv/
 env/

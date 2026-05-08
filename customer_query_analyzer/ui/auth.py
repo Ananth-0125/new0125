@@ -36,13 +36,13 @@ def init_auth_state() -> None:
 def _get_firebase_config() -> dict:
     config = FIREBASE_CONFIG.copy()
     keys = {
-        "apiKey": "FIREBASE_API_KEY",
-        "authDomain": "FIREBASE_AUTH_DOMAIN",
-        "projectId": "FIREBASE_PROJECT_ID",
-        "storageBucket": "FIREBASE_STORAGE_BUCKET",
-        "messagingSenderId": "FIREBASE_MESSAGING_SENDER_ID",
-        "appId": "FIREBASE_APP_ID",
-        "measurementId": "FIREBASE_MEASUREMENT_ID",
+        "apiKey": "AIzaSyDXuZvYJa083npjOoCPmkmr58jzjdm2AnY",
+        "authDomain": "sourcesys-pro.firebaseapp.com",
+        "projectId": "sourcesys-pro",
+        "storageBucket": "sourcesys-pro.firebasestorage.app",
+        "messagingSenderId": "332622835499",
+        "appId": "1:332622835499:web:f68f2deb962c90af3ddf6e",
+        "measurementId": "G-K45HWQQ0M7",
     }
 
     for field, env_key in keys.items():

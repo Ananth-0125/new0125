@@ -1,5 +1,7 @@
-import os
 import json
+import os
+from pathlib import Path
+
 import torch
 import streamlit as st
 from transformers import BertTokenizer
@@ -15,23 +17,23 @@ def get_model_path() -> str:
     Downloads model files from HuggingFace Hub if not already cached.
     Returns path to the local cache directory.
     """
-    cache_dir = os.path.join(
-        os.getcwd(), ".cache", "hf_models", HF_REPO_ID.replace("/", "_")
+    cache_dir = (
+        Path.home() / ".cache" / "hf_models" / HF_REPO_ID.replace("/", "_")
     )
-    os.makedirs(cache_dir, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-    bert_file = os.path.join(cache_dir, "bert_best.pt")
-    map_file  = os.path.join(cache_dir, "intent_label_map.json")
+    bert_file = cache_dir / "bert_best.pt"
+    map_file = cache_dir / "intent_label_map.json"
 
-    if not os.path.exists(bert_file) or not os.path.exists(map_file):
+    if not bert_file.exists() or not map_file.exists():
         with st.spinner("Downloading model from Hugging Face... (~1-2 minutes)"):
             snapshot_download(
                 repo_id=HF_REPO_ID,
-                local_dir=cache_dir,
+                local_dir=str(cache_dir),
                 local_dir_use_symlinks=False,
                 resume_download=True,
             )
-    return cache_dir
+    return str(cache_dir)
 
 
 @st.cache_resource(show_spinner=False)
