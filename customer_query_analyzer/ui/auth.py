@@ -1,9 +1,8 @@
 import os
-from urllib.parse import urlencode
 
 import requests
 import streamlit as st
-from google_auth_oauthlib.flow import Flow
+from streamlit.components.v2 import component as component_v2
 
 from config.firebase_config import FIREBASE_CONFIG
 
@@ -13,7 +12,7 @@ AUTH_DEFAULTS = {
     "auth_user": None,
     "auth_token": "",
     "refresh_token": "",
-    "google_oauth_state": "",
+    "auth_action": "",
 }
 
 FIREBASE_ERROR_MESSAGES = {
@@ -24,10 +23,388 @@ FIREBASE_ERROR_MESSAGES = {
     "USER_DISABLED": "This Firebase user has been disabled.",
     "WEAK_PASSWORD : Password should be at least 6 characters": "Password must be at least 6 characters long.",
     "WEAK_PASSWORD": "Password must be at least 6 characters long.",
-    "OPERATION_NOT_ALLOWED": "Enable Email/Password sign-in in your Firebase console.",
+    "OPERATION_NOT_ALLOWED": "Enable the requested sign-in method in your Firebase console.",
     "TOO_MANY_ATTEMPTS_TRY_LATER": "Too many attempts. Please try again later.",
     "INVALID_EMAIL": "Enter a valid email address.",
 }
+
+AUTH_HTML = """
+<div class="fb-auth-card">
+    <button id="google-login-btn" class="fb-google-btn" type="button">Continue with Google</button>
+    <div class="fb-divider">OR USE EMAIL/PASSWORD</div>
+
+    <div class="fb-tab-row">
+        <button class="fb-tab active" data-tab="signin" type="button">Sign In</button>
+        <button class="fb-tab" data-tab="signup" type="button">Sign Up</button>
+        <button class="fb-tab" data-tab="reset" type="button">Reset Password</button>
+    </div>
+
+    <div id="fb-auth-message" class="fb-message"></div>
+
+    <div class="fb-panel active" data-panel="signin">
+        <input id="signin-email" class="fb-input" type="email" placeholder="Email" />
+        <input id="signin-password" class="fb-input" type="password" placeholder="Password" />
+        <button id="signin-btn" class="fb-primary-btn" type="button">Sign In</button>
+    </div>
+
+    <div class="fb-panel" data-panel="signup">
+        <input id="signup-email" class="fb-input" type="email" placeholder="Email" />
+        <input id="signup-password" class="fb-input" type="password" placeholder="Password" />
+        <button id="signup-btn" class="fb-primary-btn" type="button">Create Account</button>
+    </div>
+
+    <div class="fb-panel" data-panel="reset">
+        <input id="reset-email" class="fb-input" type="email" placeholder="Registered email" />
+        <button id="reset-btn" class="fb-primary-btn" type="button">Send Reset Link</button>
+    </div>
+
+    <div class="fb-note">
+        Enable Google and Email/Password in Firebase Authentication. Also add your Streamlit app domain to Firebase authorized domains.
+    </div>
+</div>
+"""
+
+AUTH_CSS = """
+.fb-auth-card {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 18px;
+    border: 1px solid #d8e3ec;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    box-shadow: 0 10px 32px rgba(0, 88, 163, 0.08);
+    font-family: "Segoe UI", sans-serif;
+}
+
+.fb-google-btn,
+.fb-primary-btn,
+.fb-tab {
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.fb-google-btn {
+    width: 100%;
+    padding: 12px 14px;
+    background: #ffffff;
+    color: #0f172a;
+    border: 1px solid #d8e3ec;
+    font-weight: 700;
+    font-size: 0.98rem;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.fb-google-btn:hover,
+.fb-primary-btn:hover,
+.fb-tab:hover {
+    transform: translateY(-1px);
+}
+
+.fb-divider {
+    text-align: center;
+    color: #99a0aa;
+    font-size: 0.72rem;
+    margin: 14px 0 12px 0;
+    letter-spacing: 1.3px;
+}
+
+.fb-tab-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.fb-tab {
+    padding: 10px 12px;
+    background: #edf4fa;
+    color: #4b5563;
+    font-weight: 700;
+    font-size: 0.86rem;
+}
+
+.fb-tab.active {
+    background: #0058a3;
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(0, 88, 163, 0.18);
+}
+
+.fb-panel {
+    display: none;
+}
+
+.fb-panel.active {
+    display: block;
+}
+
+.fb-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 13px;
+    border: 1px solid #c9d7e4;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+    background: #ffffff;
+}
+
+.fb-input:focus {
+    outline: none;
+    border-color: #0058a3;
+    box-shadow: 0 0 0 3px rgba(0, 88, 163, 0.12);
+}
+
+.fb-primary-btn {
+    width: 100%;
+    padding: 12px 14px;
+    background: #0058a3;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.fb-primary-btn:disabled,
+.fb-google-btn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.fb-message {
+    min-height: 20px;
+    margin: 0 0 10px 0;
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.fb-message.error {
+    color: #cc2200;
+}
+
+.fb-message.success {
+    color: #1a7a2a;
+}
+
+.fb-note {
+    margin-top: 12px;
+    color: #7b8794;
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+"""
+
+AUTH_JS = """
+const firebaseSdkPromise = Promise.all([
+  import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
+  import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
+]);
+
+let authObserverCleanup = null;
+
+function renderAuthUI(root) {
+  if (root.dataset.rendered === "true") {
+    return;
+  }
+  root.dataset.rendered = "true";
+}
+
+function setBusy(root, busy) {
+  root.querySelectorAll("button").forEach((button) => {
+    button.disabled = busy;
+  });
+}
+
+function setMessage(root, text, tone = "") {
+  const msg = root.querySelector("#fb-auth-message");
+  msg.textContent = text || "";
+  msg.className = "fb-message";
+  if (tone) {
+    msg.classList.add(tone);
+  }
+}
+
+function activateTab(root, tabName) {
+  root.querySelectorAll(".fb-tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tabName);
+  });
+  root.querySelectorAll(".fb-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.panel === tabName);
+  });
+}
+
+function normalizeError(error) {
+  if (!error) {
+    return "Authentication failed.";
+  }
+  return error.message || String(error);
+}
+
+export default function(component) {
+  const { data, parentElement, setStateValue } = component;
+  const root = parentElement.querySelector(".fb-auth-card");
+  renderAuthUI(root);
+
+  firebaseSdkPromise.then(async ([appMod, authMod]) => {
+    const { initializeApp, getApps } = appMod;
+    const {
+      getAuth,
+      GoogleAuthProvider,
+      browserLocalPersistence,
+      createUserWithEmailAndPassword,
+      onAuthStateChanged,
+      sendPasswordResetEmail,
+      setPersistence,
+      signInWithEmailAndPassword,
+      signInWithPopup,
+      signOut,
+    } = authMod;
+
+    const config = data.firebaseConfig || {};
+    const existing = getApps().find((app) => app.name === "streamlit-firebase-auth");
+    const app = existing || initializeApp(config, "streamlit-firebase-auth");
+    const auth = getAuth(app);
+
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+    const googleBtn = root.querySelector("#google-login-btn");
+    const signinBtn = root.querySelector("#signin-btn");
+    const signupBtn = root.querySelector("#signup-btn");
+    const resetBtn = root.querySelector("#reset-btn");
+
+    root.querySelectorAll(".fb-tab").forEach((button) => {
+      button.onclick = () => {
+        activateTab(root, button.dataset.tab);
+        setMessage(root, "");
+      };
+    });
+
+    googleBtn.onclick = async () => {
+      setBusy(root, true);
+      setMessage(root, "Opening Google sign-in...", "");
+      try {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        await signInWithPopup(auth, provider);
+        setMessage(root, "Signed in with Google.", "success");
+      } catch (error) {
+        setMessage(root, normalizeError(error), "error");
+      } finally {
+        setBusy(root, false);
+      }
+    };
+
+    signinBtn.onclick = async () => {
+      const email = root.querySelector("#signin-email").value.trim();
+      const password = root.querySelector("#signin-password").value;
+      if (!email || !password) {
+        setMessage(root, "Enter both email and password.", "error");
+        return;
+      }
+
+      setBusy(root, true);
+      setMessage(root, "Signing in...", "");
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        setMessage(root, "Signed in successfully.", "success");
+      } catch (error) {
+        setMessage(root, normalizeError(error), "error");
+      } finally {
+        setBusy(root, false);
+      }
+    };
+
+    signupBtn.onclick = async () => {
+      const email = root.querySelector("#signup-email").value.trim();
+      const password = root.querySelector("#signup-password").value;
+      if (!email || !password) {
+        setMessage(root, "Enter email and password to create an account.", "error");
+        return;
+      }
+
+      setBusy(root, true);
+      setMessage(root, "Creating account...", "");
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+        setMessage(root, "Account created successfully.", "success");
+      } catch (error) {
+        setMessage(root, normalizeError(error), "error");
+      } finally {
+        setBusy(root, false);
+      }
+    };
+
+    resetBtn.onclick = async () => {
+      const email = root.querySelector("#reset-email").value.trim();
+      if (!email) {
+        setMessage(root, "Enter your registered email address.", "error");
+        return;
+      }
+
+      setBusy(root, true);
+      setMessage(root, "Sending reset email...", "");
+      try {
+        await sendPasswordResetEmail(auth, email);
+        setMessage(root, "Password reset email sent.", "success");
+      } catch (error) {
+        setMessage(root, normalizeError(error), "error");
+      } finally {
+        setBusy(root, false);
+      }
+    };
+
+    if (authObserverCleanup) {
+      authObserverCleanup();
+      authObserverCleanup = null;
+    }
+
+    authObserverCleanup = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const token = await user.getIdToken();
+        const provider = (user.providerData && user.providerData[0] && user.providerData[0].providerId) || "";
+        setStateValue("auth_state", {
+          status: "authenticated",
+          idToken: token,
+          email: user.email || "",
+          displayName: user.displayName || "",
+          provider: provider,
+          nonce: Date.now(),
+        });
+      } else {
+        setStateValue("auth_state", {
+          status: "signed_out",
+          nonce: Date.now(),
+        });
+      }
+    });
+
+    if (data.action === "logout") {
+      setBusy(root, true);
+      await signOut(auth).catch(() => {});
+      setBusy(root, false);
+      setMessage(root, "Signed out.", "success");
+    }
+  }).catch((error) => {
+    setMessage(root, "Failed to load Firebase authentication UI: " + normalizeError(error), "error");
+  });
+
+  return () => {
+    if (authObserverCleanup) {
+      authObserverCleanup();
+      authObserverCleanup = null;
+    }
+  };
+}
+"""
+
+FIREBASE_AUTH_WIDGET = component_v2(
+    "firebase_auth_widget",
+    html=AUTH_HTML,
+    css=AUTH_CSS,
+    js=AUTH_JS,
+    isolate_styles=False,
+)
 
 
 def init_auth_state() -> None:
@@ -70,50 +447,6 @@ def _get_firebase_config() -> dict:
     return config
 
 
-def _get_google_oauth_config() -> dict | None:
-    client_id = _get_secret_value("GOOGLE_CLIENT_ID")
-    client_secret = _get_secret_value("GOOGLE_CLIENT_SECRET")
-    redirect_uri = _get_secret_value("GOOGLE_REDIRECT_URI")
-
-    if not client_id or not client_secret or not redirect_uri:
-        return None
-
-    return {
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-    }
-
-
-def _build_google_flow(config: dict, state: str | None = None) -> Flow:
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": config["client_id"],
-                "client_secret": config["client_secret"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [config["redirect_uri"]],
-            }
-        },
-        scopes=["openid", "email", "profile"],
-        state=state,
-    )
-    flow.redirect_uri = config["redirect_uri"]
-    return flow
-
-
-def _build_google_auth_url(config: dict) -> str:
-    flow = _build_google_flow(config)
-    authorization_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="select_account",
-    )
-    st.session_state.google_oauth_state = state
-    return authorization_url
-
-
 def _firebase_error_message(error_payload: dict) -> str:
     code = (
         error_payload.get("error", {})
@@ -135,16 +468,27 @@ def _firebase_post(action: str, payload: dict) -> dict:
     return data
 
 
-def _set_authenticated_user(auth_data: dict) -> None:
+def _lookup_user_by_token(id_token: str) -> dict:
+    data = _firebase_post("lookup", {"idToken": id_token})
+    users = data.get("users", [])
+    if not users:
+        raise ValueError("Firebase did not return user details for this session.")
+    return users[0]
+
+
+def _set_authenticated_user(user_data: dict, id_token: str) -> None:
+    provider_info = user_data.get("providerUserInfo", [])
+    provider = provider_info[0].get("providerId", "") if provider_info else ""
+
     st.session_state.is_authenticated = True
-    st.session_state.auth_token = auth_data.get("idToken", "")
-    st.session_state.refresh_token = auth_data.get("refreshToken", "")
+    st.session_state.auth_token = id_token
+    st.session_state.refresh_token = ""
     st.session_state.auth_user = {
-        "email": auth_data.get("email", ""),
-        "uid": auth_data.get("localId", ""),
-        "display_name": auth_data.get("displayName", ""),
-        "photo_url": auth_data.get("photoUrl", ""),
-        "provider": auth_data.get("providerId", ""),
+        "email": user_data.get("email", ""),
+        "uid": user_data.get("localId", ""),
+        "display_name": user_data.get("displayName", ""),
+        "photo_url": user_data.get("photoUrl", ""),
+        "provider": provider,
     }
 
 
@@ -153,74 +497,7 @@ def logout_user() -> None:
     st.session_state.auth_token = ""
     st.session_state.refresh_token = ""
     st.session_state.auth_user = None
-    st.session_state.google_oauth_state = ""
-
-
-def _finalize_google_sign_in(config: dict, google_id_token: str) -> dict:
-    post_body = urlencode(
-        {
-            "id_token": google_id_token,
-            "providerId": "google.com",
-        }
-    )
-    return _firebase_post(
-        "signInWithIdp",
-        {
-            "postBody": post_body,
-            "requestUri": config["redirect_uri"],
-            "returnIdpCredential": True,
-            "returnSecureToken": True,
-        },
-    )
-
-
-def handle_google_callback() -> None:
-    query_params = st.query_params
-    code = query_params.get("code")
-    state = query_params.get("state")
-    error = query_params.get("error")
-
-    if error:
-        st.error(f"Google sign-in failed: {error}")
-        st.query_params.clear()
-        return
-
-    if not code:
-        return
-
-    config = _get_google_oauth_config()
-    if not config:
-        st.error(
-            "Google sign-in is not configured. Add GOOGLE_CLIENT_ID, "
-            "GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI to Streamlit secrets."
-        )
-        st.query_params.clear()
-        return
-
-    expected_state = st.session_state.google_oauth_state
-    if expected_state and state and state != expected_state:
-        st.error("Google sign-in state mismatch. Please try again.")
-        st.query_params.clear()
-        st.session_state.google_oauth_state = ""
-        return
-
-    try:
-        flow = _build_google_flow(config, state=state)
-        flow.fetch_token(code=code)
-        credentials = flow.credentials
-
-        if not credentials.id_token:
-            raise ValueError("Google did not return an ID token.")
-
-        auth_data = _finalize_google_sign_in(config, credentials.id_token)
-        _set_authenticated_user(auth_data)
-        st.session_state.google_oauth_state = ""
-        st.query_params.clear()
-        st.rerun()
-    except Exception as exc:
-        st.error(f"Google sign-in failed: {exc}")
-        st.query_params.clear()
-        st.session_state.google_oauth_state = ""
+    st.session_state.auth_action = "logout"
 
 
 def render_auth_status() -> None:
@@ -251,146 +528,48 @@ def render_auth_status() -> None:
 
 
 def render_auth_page() -> None:
-    handle_google_callback()
-
     st.markdown(
         """
         <div class="page-header" style="max-width:780px;margin:28px auto 24px auto;">
             <div class="header-tags">
                 <span class="htag">FIREBASE AUTH</span>
-                <span class="htag">EMAIL LOGIN</span>
+                <span class="htag">GOOGLE + EMAIL</span>
                 <span class="htag">SECURED ACCESS</span>
             </div>
             <h1>Customer Query Analyzer</h1>
-            <p>Sign in with your Firebase account before using the analyzer.</p>
+            <p>Sign in with Firebase before using the analyzer.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    left, center, right = st.columns([1, 1.2, 1])
+    left, center, right = st.columns([1, 1.25, 1])
     with center:
-        google_config = _get_google_oauth_config()
-        st.markdown(
-            "<div style='font-size:0.72rem;color:#666677;margin:0 0 8px 0;font-family:Roboto Mono,monospace;'>"
-            "SIGN IN OPTIONS</div>",
-            unsafe_allow_html=True,
-        )
-        if google_config:
-            st.link_button(
-                "Continue with Google",
-                _build_google_auth_url(google_config),
-                use_container_width=True,
-            )
-        else:
-            st.info(
-                "To enable Google sign-in, create a Google OAuth Web Application "
-                "client in Google Cloud Console, then add GOOGLE_CLIENT_ID, "
-                "GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI to Streamlit secrets."
-            )
-            st.markdown(
-                """
-                **Where to get them**
-
-                1. Open Google Cloud Console
-                2. Go to `APIs & Services` -> `Credentials`
-                3. Click `Create Credentials` -> `OAuth client ID`
-                4. Choose `Web application`
-                5. Add your Streamlit app URL as an authorized redirect URI
-
-                Then copy:
-
-                - `GOOGLE_CLIENT_ID` from the OAuth client
-                - `GOOGLE_CLIENT_SECRET` from the OAuth client
-                - `GOOGLE_REDIRECT_URI` as your exact Streamlit app URL
-
-                Also enable `Google` in Firebase Authentication -> `Sign-in method`.
-                """,
-            )
-
-        st.markdown(
-            "<div style='text-align:center;color:#99A0AA;font-size:0.72rem;margin:10px 0 6px 0;font-family:Roboto Mono,monospace;'>"
-            "OR USE EMAIL/PASSWORD</div>",
-            unsafe_allow_html=True,
+        result = FIREBASE_AUTH_WIDGET(
+            data={
+                "firebaseConfig": _get_firebase_config(),
+                "action": st.session_state.auth_action,
+            },
+            key="firebase_auth_widget_mount",
+            on_auth_state_change=lambda: None,
         )
 
-        login_tab, register_tab, reset_tab = st.tabs(
-            ["Sign In", "Register", "Reset Password"]
-        )
-
-        with login_tab:
-            with st.form("firebase_login_form"):
-                email = st.text_input("Email", placeholder="you@example.com")
-                password = st.text_input("Password", type="password")
-                submitted = st.form_submit_button("Sign In", use_container_width=True)
-
-            if submitted:
-                if not email or not password:
-                    st.error("Enter both email and password.")
-                else:
+        auth_state = getattr(result, "auth_state", None)
+        if auth_state:
+            status = auth_state.get("status", "")
+            if status == "authenticated":
+                token = auth_state.get("idToken", "")
+                if token and token != st.session_state.auth_token:
                     try:
-                        auth_data = _firebase_post(
-                            "signInWithPassword",
-                            {
-                                "email": email.strip(),
-                                "password": password,
-                                "returnSecureToken": True,
-                            },
-                        )
-                        _set_authenticated_user(auth_data)
+                        user_data = _lookup_user_by_token(token)
+                        _set_authenticated_user(user_data, token)
+                        st.session_state.auth_action = ""
                         st.rerun()
                     except Exception as exc:
                         st.error(str(exc))
-
-        with register_tab:
-            with st.form("firebase_register_form"):
-                email = st.text_input("New Email", placeholder="you@example.com")
-                password = st.text_input("New Password", type="password")
-                confirm_password = st.text_input("Confirm Password", type="password")
-                submitted = st.form_submit_button("Create Account", use_container_width=True)
-
-            if submitted:
-                if not email or not password or not confirm_password:
-                    st.error("Fill in all registration fields.")
-                elif password != confirm_password:
-                    st.error("Passwords do not match.")
-                else:
-                    try:
-                        auth_data = _firebase_post(
-                            "signUp",
-                            {
-                                "email": email.strip(),
-                                "password": password,
-                                "returnSecureToken": True,
-                            },
-                        )
-                        _set_authenticated_user(auth_data)
-                        st.success("Firebase account created successfully.")
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(str(exc))
-
-        with reset_tab:
-            with st.form("firebase_reset_form"):
-                email = st.text_input("Registered Email", placeholder="you@example.com")
-                submitted = st.form_submit_button("Send Reset Link", use_container_width=True)
-
-            if submitted:
-                if not email:
-                    st.error("Enter your registered email address.")
-                else:
-                    try:
-                        _firebase_post(
-                            "sendOobCode",
-                            {
-                                "requestType": "PASSWORD_RESET",
-                                "email": email.strip(),
-                            },
-                        )
-                        st.success("Password reset email sent.")
-                    except Exception as exc:
-                        st.error(str(exc))
+            elif status == "signed_out" and st.session_state.auth_action == "logout":
+                st.session_state.auth_action = ""
 
         st.caption(
-            "Enable Email/Password and Google in Firebase Authentication before deploying these sign-in methods."
+            "Enable Google and Email/Password in Firebase Authentication. Add your Streamlit app domain to Firebase authorized domains."
         )

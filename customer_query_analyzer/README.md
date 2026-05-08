@@ -223,23 +223,6 @@ Get a free key at: https://console.groq.com
 GROQ_API_KEY = "your_groq_api_key_here"
 ```
 
-For Google sign-in, also add:
-
-```
-GOOGLE_CLIENT_ID = "your_google_oauth_client_id"
-GOOGLE_CLIENT_SECRET = "your_google_oauth_client_secret"
-GOOGLE_REDIRECT_URI = "https://your-app-name.streamlit.app"
-```
-
-Where to get them:
-
-1. In Firebase Console, enable `Authentication` -> `Sign-in method` -> `Google`
-2. In Google Cloud Console, open `APIs & Services` -> `Credentials`
-3. Create an `OAuth client ID`
-4. Choose `Web application`
-5. Copy the generated client ID and client secret
-6. Add your exact Streamlit app URL as the authorized redirect URI and use that same URL for `GOOGLE_REDIRECT_URI`
-
 Optional Firebase overrides:
 
 ```
@@ -256,7 +239,7 @@ FIREBASE_MEASUREMENT_ID = "your_measurement_id"
 
 The BERT model is hosted on HuggingFace at `YamiChowdary/customer-query-analyzer-bert` and is downloaded automatically when the app starts on the cloud server.
 
-If you want the Google button to work, enable Google as a sign-in provider in Firebase Authentication and add the same Streamlit app URL as an authorized redirect URI in your Google OAuth client.
+If you want the Google button to work, enable Google as a sign-in provider in Firebase Authentication and add your Streamlit app domain to Firebase Authentication authorized domains.
 
 ---
 
