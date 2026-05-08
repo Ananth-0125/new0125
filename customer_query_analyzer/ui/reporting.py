@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 
+from reportlab.graphics.shapes import Circle, Drawing, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -24,6 +25,135 @@ def summarize_session_sentiment(sentiment_counts: dict) -> str:
 
 def _safe(value) -> str:
     return "" if value is None else str(value)
+
+
+def _build_session_sentiment_chart(sentiment_counts: dict, total_queries: int) -> Drawing:
+    drawing = Drawing(420, 210)
+
+    center_x = 92
+    center_y = 116
+    radius = 58
+    inner_radius = 31
+
+    palette = {
+        "neutral": colors.HexColor("#99A0AA"),
+        "negative": colors.HexColor("#CC2200"),
+        "positive": colors.HexColor("#1A7A2A"),
+    }
+    labels = {
+        "neutral": "Neutral",
+        "negative": "Negative",
+        "positive": "Positive",
+    }
+
+    total = max(sum(sentiment_counts.values()), 1)
+
+    # Donut-style summary ring using a neutral base to keep rendering stable.
+    drawing.add(
+        Circle(
+            center_x,
+            center_y,
+            radius,
+            fillColor=palette["neutral"],
+            strokeColor=palette["neutral"],
+        )
+    )
+
+    drawing.add(
+        Circle(
+            center_x,
+            center_y,
+            inner_radius,
+            fillColor=colors.white,
+            strokeColor=colors.white,
+        )
+    )
+    drawing.add(
+        String(
+            center_x,
+            center_y + 2,
+            str(total_queries),
+            textAnchor="middle",
+            fontName="Helvetica-Bold",
+            fontSize=20,
+            fillColor=colors.HexColor("#0058A3"),
+        )
+    )
+    drawing.add(
+        String(
+            center_x,
+            center_y - 22,
+            "100%" if total_queries else "0%",
+            textAnchor="middle",
+            fontName="Helvetica",
+            fontSize=11,
+            fillColor=colors.HexColor("#666677"),
+        )
+    )
+
+    drawing.add(
+        String(
+            15,
+            190,
+            "Session Sentiment",
+            fontName="Helvetica-Bold",
+            fontSize=14,
+            fillColor=colors.HexColor("#4B5563"),
+        )
+    )
+
+    bar_x = 180
+    bar_y = 145
+    bar_width = 160
+    bar_height = 14
+
+    for index, key in enumerate(["neutral", "negative", "positive"]):
+        y = bar_y - (index * 40)
+        count = sentiment_counts.get(key, 0)
+        pct = round((count / total_queries) * 100) if total_queries else 0
+
+        drawing.add(
+            String(
+                bar_x,
+                y + 16,
+                labels[key],
+                fontName="Helvetica-Bold",
+                fontSize=11,
+                fillColor=colors.HexColor("#4B5563"),
+            )
+        )
+        drawing.add(
+            Rect(
+                bar_x,
+                y,
+                bar_width,
+                bar_height,
+                fillColor=colors.HexColor("#EEF3FA"),
+                strokeColor=colors.HexColor("#D8E3EC"),
+            )
+        )
+        drawing.add(
+            Rect(
+                bar_x,
+                y,
+                bar_width * (pct / 100),
+                bar_height,
+                fillColor=palette[key],
+                strokeColor=palette[key],
+            )
+        )
+        drawing.add(
+            String(
+                bar_x + bar_width + 10,
+                y + 2,
+                f"{count} ({pct}%)",
+                fontName="Helvetica",
+                fontSize=11,
+                fillColor=colors.HexColor("#4B5563"),
+            )
+        )
+
+    return drawing
 
 
 def build_history_pdf(
@@ -114,7 +244,10 @@ def build_history_pdf(
             ]
         )
     )
-    story.extend([summary_table, Spacer(1, 0.25 * inch)])
+    story.extend([summary_table, Spacer(1, 0.22 * inch)])
+
+    story.append(_build_session_sentiment_chart(sentiment_counts, total_queries))
+    story.append(Spacer(1, 0.18 * inch))
 
     table_rows = [
         ["Time", "Query", "Intent", "Confidence", "Sentiment", "Status", "Latency", "Feedback"]
