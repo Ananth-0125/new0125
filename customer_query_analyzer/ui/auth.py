@@ -284,8 +284,28 @@ def render_auth_page() -> None:
             )
         else:
             st.info(
-                "To enable Google sign-in, add GOOGLE_CLIENT_ID, "
+                "To enable Google sign-in, create a Google OAuth Web Application "
+                "client in Google Cloud Console, then add GOOGLE_CLIENT_ID, "
                 "GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI to Streamlit secrets."
+            )
+            st.markdown(
+                """
+                **Where to get them**
+
+                1. Open Google Cloud Console
+                2. Go to `APIs & Services` -> `Credentials`
+                3. Click `Create Credentials` -> `OAuth client ID`
+                4. Choose `Web application`
+                5. Add your Streamlit app URL as an authorized redirect URI
+
+                Then copy:
+
+                - `GOOGLE_CLIENT_ID` from the OAuth client
+                - `GOOGLE_CLIENT_SECRET` from the OAuth client
+                - `GOOGLE_REDIRECT_URI` as your exact Streamlit app URL
+
+                Also enable `Google` in Firebase Authentication -> `Sign-in method`.
+                """,
             )
 
         st.markdown(

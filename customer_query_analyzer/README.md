@@ -231,6 +231,15 @@ GOOGLE_CLIENT_SECRET = "your_google_oauth_client_secret"
 GOOGLE_REDIRECT_URI = "https://your-app-name.streamlit.app"
 ```
 
+Where to get them:
+
+1. In Firebase Console, enable `Authentication` -> `Sign-in method` -> `Google`
+2. In Google Cloud Console, open `APIs & Services` -> `Credentials`
+3. Create an `OAuth client ID`
+4. Choose `Web application`
+5. Copy the generated client ID and client secret
+6. Add your exact Streamlit app URL as the authorized redirect URI and use that same URL for `GOOGLE_REDIRECT_URI`
+
 Optional Firebase overrides:
 
 ```
