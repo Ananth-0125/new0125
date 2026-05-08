@@ -36,7 +36,6 @@ AUTH_HTML = """
     <div class="fb-tab-row">
         <button class="fb-tab active" data-tab="signin" type="button">Sign In</button>
         <button class="fb-tab" data-tab="signup" type="button">Sign Up</button>
-        <button class="fb-tab" data-tab="reset" type="button">Reset Password</button>
     </div>
 
     <div id="fb-auth-message" class="fb-message"></div>
@@ -51,11 +50,6 @@ AUTH_HTML = """
         <input id="signup-email" class="fb-input" type="email" placeholder="Email" />
         <input id="signup-password" class="fb-input" type="password" placeholder="Password" />
         <button id="signup-btn" class="fb-primary-btn" type="button">Create Account</button>
-    </div>
-
-    <div class="fb-panel" data-panel="reset">
-        <input id="reset-email" class="fb-input" type="email" placeholder="Registered email" />
-        <button id="reset-btn" class="fb-primary-btn" type="button">Send Reset Link</button>
     </div>
 
     <div class="fb-note">
@@ -113,7 +107,7 @@ AUTH_CSS = """
 
 .fb-tab-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
     margin-bottom: 12px;
 }
@@ -149,6 +143,14 @@ AUTH_CSS = """
     margin-bottom: 10px;
     font-size: 0.95rem;
     background: #ffffff;
+    color: #0f172a;
+    caret-color: #0f172a;
+    -webkit-text-fill-color: #0f172a;
+}
+
+.fb-input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
 }
 
 .fb-input:focus {
@@ -251,10 +253,9 @@ export default function(component) {
     const {
       getAuth,
       GoogleAuthProvider,
-      browserLocalPersistence,
+      browserSessionPersistence,
       createUserWithEmailAndPassword,
       onAuthStateChanged,
-      sendPasswordResetEmail,
       setPersistence,
       signInWithEmailAndPassword,
       signInWithPopup,
@@ -266,12 +267,11 @@ export default function(component) {
     const app = existing || initializeApp(config, "streamlit-firebase-auth");
     const auth = getAuth(app);
 
-    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+    await setPersistence(auth, browserSessionPersistence).catch(() => {});
 
     const googleBtn = root.querySelector("#google-login-btn");
     const signinBtn = root.querySelector("#signin-btn");
     const signupBtn = root.querySelector("#signup-btn");
-    const resetBtn = root.querySelector("#reset-btn");
 
     root.querySelectorAll(".fb-tab").forEach((button) => {
       button.onclick = () => {
@@ -328,25 +328,6 @@ export default function(component) {
       try {
         await createUserWithEmailAndPassword(auth, email, password);
         setMessage(root, "Account created successfully.", "success");
-      } catch (error) {
-        setMessage(root, normalizeError(error), "error");
-      } finally {
-        setBusy(root, false);
-      }
-    };
-
-    resetBtn.onclick = async () => {
-      const email = root.querySelector("#reset-email").value.trim();
-      if (!email) {
-        setMessage(root, "Enter your registered email address.", "error");
-        return;
-      }
-
-      setBusy(root, true);
-      setMessage(root, "Sending reset email...", "");
-      try {
-        await sendPasswordResetEmail(auth, email);
-        setMessage(root, "Password reset email sent.", "success");
       } catch (error) {
         setMessage(root, normalizeError(error), "error");
       } finally {
@@ -498,6 +479,7 @@ def logout_user() -> None:
     st.session_state.refresh_token = ""
     st.session_state.auth_user = None
     st.session_state.auth_action = "logout"
+    st.session_state.active_user_uid = ""
 
 
 def render_auth_status() -> None:
@@ -543,7 +525,7 @@ def render_auth_page() -> None:
         unsafe_allow_html=True,
     )
 
-    left, center, right = st.columns([1, 1.25, 1])
+    _, center, _ = st.columns([1, 1.25, 1])
     with center:
         result = FIREBASE_AUTH_WIDGET(
             data={
