@@ -223,6 +223,14 @@ Get a free key at: https://console.groq.com
 GROQ_API_KEY = "your_groq_api_key_here"
 ```
 
+For Google sign-in, also add:
+
+```
+GOOGLE_CLIENT_ID = "your_google_oauth_client_id"
+GOOGLE_CLIENT_SECRET = "your_google_oauth_client_secret"
+GOOGLE_REDIRECT_URI = "https://your-app-name.streamlit.app"
+```
+
 Optional Firebase overrides:
 
 ```
@@ -238,6 +246,8 @@ FIREBASE_MEASUREMENT_ID = "your_measurement_id"
 7. Save and reboot the app
 
 The BERT model is hosted on HuggingFace at `YamiChowdary/customer-query-analyzer-bert` and is downloaded automatically when the app starts on the cloud server.
+
+If you want the Google button to work, enable Google as a sign-in provider in Firebase Authentication and add the same Streamlit app URL as an authorized redirect URI in your Google OAuth client.
 
 ---
 
@@ -284,4 +294,3 @@ Groq's API is free, has a generous rate limit, and is significantly faster than 
 
 **Why HuggingFace for model hosting?**
 GitHub has a 25MB file size limit. The trained model is 441MB. HuggingFace Hub is the standard platform for hosting ML model weights and integrates cleanly with Python through the `huggingface_hub` library.
-

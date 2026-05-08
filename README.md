@@ -17,6 +17,14 @@ Create `.streamlit/secrets.toml` in Streamlit Cloud with at least:
 GROQ_API_KEY = "your_groq_api_key_here"
 ```
 
+For Google sign-in, also add:
+
+```toml
+GOOGLE_CLIENT_ID = "your_google_oauth_client_id"
+GOOGLE_CLIENT_SECRET = "your_google_oauth_client_secret"
+GOOGLE_REDIRECT_URI = "https://your-app-name.streamlit.app"
+```
+
 Optional Firebase overrides if you do not want to rely on the values in code:
 
 ```toml
@@ -40,5 +48,7 @@ Use these values when creating the app:
 ## Notes
 
 - Enable Firebase Email/Password authentication in your Firebase console.
+- Enable Firebase Google authentication in your Firebase console if you want the Google button to work.
+- The Google OAuth redirect URI in Google Cloud must exactly match your deployed Streamlit app URL.
 - The first app boot downloads the BERT model from Hugging Face, so the first startup will take longer than later restarts.
 - Training scripts are kept in `train/` but are not used by the deployed Streamlit app.
