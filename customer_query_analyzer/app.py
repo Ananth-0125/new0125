@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import streamlit as st
 
 from ui.styles    import CSS
@@ -8,14 +10,53 @@ from ui.analytics import render_analytics, render_history_table
 from model.loader import get_model_path, load_model
 
 
-def _reset_analyzer_state(defaults: dict) -> None:
+USER_STATE_DEFAULTS = {
+    "messages": [],
+    "conv_history": [],
+    "history_log": [],
+    "total_queries": 0,
+    "sentiment_counts": {"negative": 0, "neutral": 0, "positive": 0},
+    "security_count": 0,
+    "lowconf_count": 0,
+    "last_result": None,
+    "intent_freq": {},
+    "latencies": [],
+    "feedback": {},
+}
+
+GLOBAL_DEFAULTS = {
+    "bert_loaded": False,
+    "api_key": "",
+    "active_user_uid": "",
+    "user_state_store": {},
+}
+
+
+def _clone_default(value):
+    return deepcopy(value)
+
+
+def _init_state(defaults: dict) -> None:
     for key, value in defaults.items():
-        if isinstance(value, dict):
-            st.session_state[key] = value.copy()
-        elif isinstance(value, list):
-            st.session_state[key] = []
-        else:
-            st.session_state[key] = value
+        if key not in st.session_state:
+            st.session_state[key] = _clone_default(value)
+
+
+def _save_user_state(uid: str) -> None:
+    if not uid:
+        return
+
+    st.session_state.user_state_store[uid] = {
+        key: _clone_default(st.session_state[key])
+        for key in USER_STATE_DEFAULTS
+    }
+
+
+def _load_user_state(uid: str) -> None:
+    saved = st.session_state.user_state_store.get(uid)
+    source = saved if saved is not None else USER_STATE_DEFAULTS
+    for key, value in source.items():
+        st.session_state[key] = _clone_default(value)
 
 
 st.set_page_config(
@@ -27,44 +68,30 @@ st.set_page_config(
 
 st.markdown(CSS, unsafe_allow_html=True)
 
-_defaults = {
-    "messages": [],
-    "conv_history": [],
-    "history_log": [],
-    "total_queries": 0,
-    "sentiment_counts": {"negative": 0, "neutral": 0, "positive": 0},
-    "security_count": 0,
-    "lowconf_count": 0,
-    "bert_loaded": False,
-    "last_result": None,
-    "intent_freq": {},
-    "latencies": [],
-    "feedback": {},
-    "api_key": "",
-    "active_user_uid": "",
-}
-
-for key, value in _defaults.items():
-    if key not in st.session_state:
-        if isinstance(value, dict):
-            st.session_state[key] = value.copy()
-        elif isinstance(value, list):
-            st.session_state[key] = []
-        else:
-            st.session_state[key] = value
-
+_init_state(USER_STATE_DEFAULTS)
+_init_state(GLOBAL_DEFAULTS)
 init_auth_state()
 
 if not st.session_state.is_authenticated:
+    pending_logout_uid = st.session_state.get("pending_logout_uid", "")
+    if pending_logout_uid:
+        _save_user_state(pending_logout_uid)
+        st.session_state.active_user_uid = ""
+        st.session_state.pending_logout_uid = ""
     render_auth_page()
     st.stop()
 
 current_uid = (st.session_state.auth_user or {}).get("uid", "")
-if current_uid and st.session_state.active_user_uid != current_uid:
-    _reset_analyzer_state(_defaults)
-    st.session_state.active_user_uid = current_uid
+previous_uid = st.session_state.active_user_uid
 
-api_key = render_sidebar(_defaults)
+if current_uid and current_uid != previous_uid:
+    if previous_uid:
+        _save_user_state(previous_uid)
+    _load_user_state(current_uid)
+    st.session_state.active_user_uid = current_uid
+    st.session_state.pending_logout_uid = ""
+
+api_key = render_sidebar(USER_STATE_DEFAULTS)
 st.session_state.api_key = api_key
 
 if not st.session_state.bert_loaded:
